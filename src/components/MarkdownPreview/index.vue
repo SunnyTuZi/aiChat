@@ -37,7 +37,8 @@ const emit = defineEmits([
   'failed',
   'completed',
   'update:reader',
-  'streaming-update'
+  'streaming-update',
+  'continue-generate'
 ])
 
 const refWrapperContent = ref<HTMLElement>()
@@ -163,10 +164,17 @@ const readTextStream = async () => {
     }
   }
 
-  window.$ModalNotification.success({
-    title: '生成完毕',
-    duration: 1500
-  })
+  if (isAbort.value) {
+    window.$ModalNotification.success({
+      title: '暂停生成',
+      duration: 1500
+    })
+  } else {
+    window.$ModalNotification.success({
+      title: '生成完毕',
+      duration: 1500
+    })
+  }
   emit('update:reader', null)
   emit('completed')
   readerLoading.value = false
@@ -267,6 +275,34 @@ const emptyPlaceholder = computed(() => {
 const renderMessageContent = (content: string) => {
   return renderMarkdownText(content)
 }
+
+const handleCopyContent = async (content: string) => {
+  try {
+    if (navigator.clipboard) {
+      await navigator.clipboard.writeText(content)
+    } else {
+      const textarea = document.createElement('textarea')
+      textarea.value = content
+      textarea.style.position = 'fixed'
+      textarea.style.clip = 'rect(0, 0, 0, 0)'
+      document.body.appendChild(textarea)
+      textarea.select()
+      document.execCommand('copy')
+      document.body.removeChild(textarea)
+    }
+    window.$ModalMessage.success('复制成功')
+  } catch {
+    const textarea = document.createElement('textarea')
+    textarea.value = content
+    textarea.style.position = 'fixed'
+    textarea.style.clip = 'rect(0, 0, 0, 0)'
+    document.body.appendChild(textarea)
+    textarea.select()
+    document.execCommand('copy')
+    document.body.removeChild(textarea)
+    window.$ModalMessage.success('复制成功')
+  }
+}
 </script>
 
 <template>
@@ -311,6 +347,23 @@ const renderMessageContent = (content: string) => {
           class="markdown-wrapper"
           v-html="renderMessageContent(message.content)"
         ></div>
+        <div class="message-actions" v-if="message.role === 'assistant'">
+          <button
+            class="copy-btn"
+            @click="handleCopyContent(message.content)"
+          >
+            <span class="i-hugeicons:copy"></span>
+            复制
+          </button>
+          <button
+            v-if="message.aborted"
+            class="copy-btn continue-btn"
+            @click="emit('continue-generate')"
+          >
+            <span class="i-hugeicons:play"></span>
+            继续生成
+          </button>
+        </div>
       </div>
     </div>
 
@@ -430,6 +483,41 @@ const renderMessageContent = (content: string) => {
   padding: 12px 0;
   color: #6b7280;
   font-size: 14px;
+}
+
+.message-actions {
+  display: flex;
+  gap: 8px;
+  margin-top: 4px;
+}
+
+.copy-btn {
+  display: flex;
+  align-items: center;
+  gap: 4px;
+  padding: 4px 8px;
+  font-size: 12px;
+  color: #6b7280;
+  background: transparent;
+  border: 1px solid #e5e7eb;
+  border-radius: 4px;
+  cursor: pointer;
+  width: fit-content;
+  transition: all 0.2s ease;
+
+  &:hover {
+    color: #8b5cf6;
+    border-color: #8b5cf6;
+    background: #f5f3ff;
+  }
+
+  &.continue-btn {
+    &:hover {
+      color: #10b981;
+      border-color: #10b981;
+      background: #ecfdf5;
+    }
+  }
 }
 
 .markdown-wrapper {

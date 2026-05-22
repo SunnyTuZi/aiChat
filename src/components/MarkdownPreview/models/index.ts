@@ -196,7 +196,7 @@ interface TypesModelLLM {
 /**
  * Mock 模拟模型的 name
  */
-export const defaultMockModelName = 'deepseek-v3'
+export const defaultMockModelName = 'deepseek-v4-pro'
 
 /**
  * 项目默认使用模型，按需修改此字段即可
@@ -246,8 +246,8 @@ export const modelMappingList: TypesModelLLM[] = [
   //   }
   // },
   {
-    label: '🐋 DeepSeek-V3',
-    modelName: 'deepseek-v3',
+    label: '🐋 DeepSeek-v4-pro',
+    modelName: 'deepseek-v4-pro',
     transformStreamValue(readValue) {
       const stream = transformStreamThinkData(readValue)
       if (stream.done) {
@@ -286,7 +286,7 @@ export const modelMappingList: TypesModelLLM[] = [
         },
         body: JSON.stringify({
           // 普通模型 V3
-          'model': 'deepseek-chat',
+          'model': 'deepseek-v4-pro',
           stream: true,
           messages: chatMessages
         })

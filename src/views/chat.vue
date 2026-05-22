@@ -38,6 +38,7 @@ setTimeout(() => {
 }, 700)
 
 const stylizingLoading = ref(false)
+const isManuallyAborted = ref(false)
 
 const inputTextString = ref('')
 const refInputTextString = ref<InputInst | null>()
@@ -70,9 +71,10 @@ const onFailedReader = () => {
 const onCompletedReader = () => {
   stylizingLoading.value = false
   if (streamingContent.value) {
-    businessStore.addAssistantMessage(streamingContent.value)
+    businessStore.addAssistantMessage(streamingContent.value, isManuallyAborted.value)
   }
   streamingContent.value = ''
+  isManuallyAborted.value = false
   setTimeout(() => {
     if (refInputTextString.value) {
       refInputTextString.value.focus()
@@ -85,8 +87,44 @@ const handleStreamingUpdate = (content: string) => {
   streamingContent.value = content
 }
 
+const handleStopGenerating = () => {
+  if (stylizingLoading.value) {
+    isManuallyAborted.value = true
+    refReaderMarkdownPreview.value.abortReader()
+    onCompletedReader()
+  }
+}
+
+const handleContinueGenerate = async () => {
+  if (currentMessages.value.length > 0) {
+    const lastMessage = currentMessages.value[currentMessages.value.length - 1]
+    if (lastMessage.role === 'assistant') {
+      lastMessage.aborted = false
+    }
+  }
+
+  refReaderMarkdownPreview.value.resetStatus()
+  refReaderMarkdownPreview.value.initializeStart()
+
+  stylizingLoading.value = true
+  const { error, reader } = await businessStore.createAssistantWriterStylized({
+    text: '',
+    isContinue: true
+  })
+
+  if (error) {
+    onFailedReader()
+    return
+  }
+
+  if (reader) {
+    outputTextReader.value = reader
+  }
+}
+
 const handleCreateStylized = async () => {
   if (stylizingLoading.value) {
+    isManuallyAborted.value = true
     refReaderMarkdownPreview.value.abortReader()
     onCompletedReader()
     return
@@ -188,6 +226,20 @@ const handleResetState = () => {
 const chatTitle = computed(() => {
   return currentSession.value?.title || '新对话'
 })
+
+const presetQuestions = [
+  '设立宗教活动场所需要满足哪些条件？审批流程是怎样的？',
+  '《宗教事务条例》中对宗教团体接受境外捐赠有什么规定？',
+  '什么是互联网宗教信息服务许可？如何申请？',
+  '宗教活动场所财务管理有什么要求？'
+]
+
+const handlePresetQuestion = (question: string) => {
+  inputTextString.value = question
+  nextTick(() => {
+    handleCreateStylized()
+  })
+}
 </script>
 
 <template>
@@ -206,7 +258,7 @@ const chatTitle = computed(() => {
                 <p class="header-subtitle">我是你的智能助手，可以回答你的任何问题</p>
               </div>
             </div>
-            <div class="header-actions">
+            <!-- <div class="header-actions">
               <div class="model-select-wrapper">
                 <n-select
                   v-model:value="businessStore.systemModelName"
@@ -216,7 +268,7 @@ const chatTitle = computed(() => {
                   :options="modelListSelections"
                 />
               </div>
-            </div>
+            </div> -->
           </div>
 
           <div class="chat-content">
@@ -230,16 +282,27 @@ const chatTitle = computed(() => {
               @failed="onFailedReader"
               @completed="onCompletedReader"
               @streaming-update="handleStreamingUpdate"
+              @continue-generate="handleContinueGenerate"
             />
           </div>
 
           <div class="chat-footer">
             <div class="input-wrapper">
+              <div class="preset-questions" v-if="!currentMessages?.length">
+                <button
+                  v-for="(question, index) in presetQuestions"
+                  :key="index"
+                  class="preset-question-btn"
+                  @click="handlePresetQuestion(question)"
+                >
+                  {{ question }}
+                </button>
+              </div>
               <n-input
                 ref="refInputTextString"
                 v-model:value="inputTextString"
                 type="textarea"
-                :autosize="{ minRows: 4, maxRows: 10 }"
+                :autosize="{ minRows: 3, maxRows: 10 }"
                 autofocus
                 class="chat-input"
                 :placeholder="placeholder"
@@ -253,10 +316,10 @@ const chatTitle = computed(() => {
                 <button
                   class="send-btn"
                   :class="{ 'sending': stylizingLoading }"
-                  @click.stop="handleCreateStylized()"
-                  :disabled="!inputTextString.trim() || stylizingLoading"
+                  @click.stop="stylizingLoading ? handleStopGenerating() : handleCreateStylized()"
+                  :disabled="!stylizingLoading && !inputTextString.trim()"
                 >
-                  <span v-if="stylizingLoading" class="i-svg-spinners:pulse-2"></span>
+                  <span v-if="stylizingLoading" class="i-hugeicons:stop-square">停止</span>
                   <span v-else class="i-hugeicons:send">发送</span>
                 </button>
 
@@ -410,14 +473,16 @@ const chatTitle = computed(() => {
 }
 
 .send-btn {
-  width: 64px;
+  min-width: 64px;
   height: 32px;
+  padding: 0 12px;
   border-radius: 4px;
   border: none;
   background: linear-gradient(135deg, #8b5cf6 0%, #ec4899 100%);
   display: flex;
   align-items: center;
   justify-content: center;
+  gap: 4px;
   font-size: 12px;
   color: #ffffff;
   cursor: pointer;
@@ -435,8 +500,12 @@ const chatTitle = computed(() => {
   }
   
   &.sending {
-    background: linear-gradient(135deg, #a78bfa 0%, #f472b6 100%);
-    animation: pulse 1s ease-in-out infinite;
+    background: linear-gradient(135deg, #ef4444 0%, #dc2626 100%);
+    animation: none;
+    
+    &:hover {
+      box-shadow: 0 4px 15px rgba(239, 68, 68, 0.4);
+    }
   }
 }
 
@@ -446,6 +515,32 @@ const chatTitle = computed(() => {
   }
   50% {
     opacity: 0.7;
+  }
+}
+
+.preset-questions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+  margin-bottom: 8px;
+}
+
+.preset-question-btn {
+  padding: 6px 12px;
+  border: 1px solid #d1d5db;
+  background: #fafafa;
+  border-radius: 4px;
+  font-size: 12px;
+  color: #4b5563;
+  cursor: pointer;
+  transition: all 0.2s ease;
+  text-align: left;
+  max-width: calc(50% - 4px);
+
+  &:hover {
+    border-color: #8b5cf6;
+    background: #f5f3ff;
+    color: #8b5cf6;
   }
 }
 </style>

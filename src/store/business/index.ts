@@ -9,6 +9,7 @@ export interface ChatMessage {
   role: 'user' | 'assistant'
   content: string
   timestamp: number
+  aborted?: boolean
 }
 
 export interface ChatSession {
@@ -119,18 +120,20 @@ export const useBusinessStore = defineStore('business-store', {
         this.saveToLocalStorage()
       }
     },
-    addAssistantMessage(content: string) {
+    addAssistantMessage(content: string, aborted = false) {
       const session = this.sessions.find(s => s.id === this.currentSessionId)
       if (session) {
         const existingMessage = session.messages.find(m => m.role === 'assistant' && m.content === '')
         if (existingMessage) {
           existingMessage.content = content
+          existingMessage.aborted = aborted
         } else {
           const message: ChatMessage = {
             id: generateId(),
             role: 'assistant',
             content,
-            timestamp: Date.now()
+            timestamp: Date.now(),
+            aborted
           }
           session.messages.push(message)
         }
