@@ -1,5 +1,5 @@
 <script lang="tsx" setup>
-import { systemTitle } from '@/base'
+import { ref } from 'vue'
 
 interface Props {
   transparent?: boolean
@@ -24,39 +24,30 @@ const handleToRepo = () => {
 
 <template>
   <header
-    class="navigation-nav-header-container b-b"
+    class="navigation-nav-header-container"
     :class="[
       transparent
         ? 'bg-bgcolor'
         : 'bg-transparent',
       hasBorder
-        ? 'b-b-#000/8 b-b-solid'
+        ? 'b-b-#e5e7eb b-b-solid'
         : 'b-b-transparent'
     ]"
   >
-    <div
-      class="header-left"
-    >
+    <div class="header-left">
       <div
-        flex="~ items-center justify-center"
-        class="text-20"
-        select-none
-        cursor-pointer
+        class="logo-wrapper"
         @click="handleToRepo()"
       >
-        <div class="size-24 i-streamline-emojis:cloud-1"></div>
-        <div class="flex-1 pl-10 font-600 text-center">{{ systemTitle }}</div>
+        <div class="logo-icon">
+          <span class="i-hugeicons:cloud-1"></span>
+        </div>
+        <span class="logo-text">小宗助手</span>
       </div>
     </div>
-    <div class="flex-1">
-      <div
-        flex="~ col items-center justify-center"
-        px-36px
-      >
-        <slot name="bottom"></slot>
-      </div>
+    <div class="header-center">
+      <slot name="center"></slot>
     </div>
-
     <div class="header-right">
       <slot name="right"></slot>
     </div>
@@ -64,23 +55,65 @@ const handleToRepo = () => {
 </template>
 
 <style lang="scss" scoped>
-
 .navigation-nav-header-container {
-  --at-apply: w-full flex items-center justify-center;
-  --at-apply: px-16 py-10;
-  --at-apply: lt-lg:flex-col;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  width: 100%;
+  padding: 12px 16px;
+  background: linear-gradient(180deg, rgb(139 92 246 / 2%) 0%, transparent 100%);
+}
 
-  .header-left,
-  .header-right {
-    --at-apply: flex items-center h-full text-16;
-  }
+.header-left {
+  display: flex;
+  align-items: center;
+  height: 40px;
+}
 
-  .header-left {
-    --at-apply: h-50px;
-  }
+.logo-wrapper {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 6px 12px;
+  border-radius: 10px;
+  cursor: pointer;
+  transition: all 0.2s ease;
 
-  .header-right {
-    --at-apply: flex items-center h-full text-16;
+  &:hover {
+    background: rgb(139 92 246 / 8%);
+    transform: translateY(-1px);
   }
+}
+
+.logo-icon {
+  width: 28px;
+  height: 28px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  background: linear-gradient(135deg, #8b5cf6 0%, #ec4899 100%);
+  border-radius: 8px;
+  font-size: 16px;
+  color: #fff;
+}
+
+.logo-text {
+  font-size: 16px;
+  font-weight: 700;
+  color: #1f2937;
+}
+
+.header-center {
+  flex: 1;
+  display: flex;
+  justify-content: center;
+  align-items: center;
+}
+
+.header-right {
+  display: flex;
+  align-items: center;
+  height: 40px;
+  gap: 8px;
 }
 </style>

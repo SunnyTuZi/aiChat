@@ -23,7 +23,7 @@ const md = new MarkdownIt({
   typographer: true
 })
 
-const resolveMarkdownItPlugin = <T,>(plugin: T): any =>
+const resolveMarkdownItPlugin = <T, >(plugin: T): any =>
   // Some CJS/dual packages expose the actual plugin under `.default`.
   // MarkdownIt expects a function (which has `.apply`); passing a module object breaks at runtime.
   (plugin as any)?.default ?? plugin

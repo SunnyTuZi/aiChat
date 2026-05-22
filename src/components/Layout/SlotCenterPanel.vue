@@ -1,4 +1,4 @@
-<script lang="ts" setup>
+<script lang="tsx" setup>
 interface Props {
   loading?: boolean
 }
@@ -21,7 +21,7 @@ withDefaults(
         w-full
         h-full
         overflow-hidden
-        class="panel-shadow"
+        class="panel-container"
       >
         <n-spin
           w-full
@@ -29,7 +29,7 @@ withDefaults(
           content-class="w-full h-full flex"
           :show="loading"
           :rotate="false"
-          class="bg-#fefbff"
+          class="bg-#ffffff"
           :style="{
             '--n-opacity-spinning': '0'
           }"
@@ -37,34 +37,76 @@ withDefaults(
           <template #icon>
             <div class="i-svg-spinners:pulse-3"></div>
           </template>
-          <section
-            v-if="$slots.left"
-            flex="~ col"
-            w-300
-            h-full
-            overflow-hidden
-          >
-            <slot name="left"></slot>
-          </section>
-          <section
-            flex="1"
-            h-full
-            overflow-hidden
-          >
-            <slot name="default"></slot>
-          </section>
+          <div class="three-column-layout">
+            <section
+              v-if="$slots.left"
+              class="left-sidebar"
+            >
+              <slot name="left"></slot>
+            </section>
+            <section class="main-content">
+              <slot name="default"></slot>
+            </section>
+            <section
+              v-if="$slots.right"
+              class="right-sidebar"
+            >
+              <slot name="right"></slot>
+            </section>
+          </div>
         </n-spin>
       </div>
     </template>
-    <template #bottom>
+    <!-- <template #bottom>
       <NavigationNavFooter />
-    </template>
+    </template> -->
   </LayoutSlotFrame>
 </template>
 
 <style lang="scss" scoped>
-.panel-shadow {
-  --shadow: 50px 50px 100px 10px rgb(0 0 0 / 10%);
-  --at-apply: "shadow-[--shadow]"
+.panel-container {
+  display: flex;
+  flex-direction: column;
+}
+
+.three-column-layout {
+  display: flex;
+  width: 100%;
+  height: 100%;
+}
+
+.left-sidebar {
+  width: 280px;
+  flex-shrink: 0;
+  height: 100%;
+  border-right: 1px solid #e5e7eb;
+}
+
+.main-content {
+  flex: 1;
+  display: flex;
+  flex-direction: column;
+  overflow: hidden;
+}
+
+.right-sidebar {
+  width: 280px;
+  flex-shrink: 0;
+  height: 100%;
+  border-left: 1px solid #e5e7eb;
+}
+
+@media (width <= 1280px) {
+
+  .right-sidebar {
+    display: none;
+  }
+}
+
+@media (width <= 768px) {
+
+  .left-sidebar {
+    display: none;
+  }
 }
 </style>

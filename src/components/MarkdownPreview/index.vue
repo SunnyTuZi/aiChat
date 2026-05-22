@@ -325,8 +325,7 @@ const handlePassClip = () => {
 
 const emptyPlaceholder = computed(() => {
   return defaultMockModelName === props.model
-    ? '当前为模拟环境\n随便问一个问题，我才会消失 ~'
-    : '问一个问题，我才会消失 ~'
+    ? '你想问点什么呢？' : '你想问点什么呢？'
 })
 </script>
 
@@ -431,6 +430,8 @@ const emptyPlaceholder = computed(() => {
 </template>
 
 <style lang="scss">
+@use "@/styles/naive-variables.scss" as *;
+
 .markdown-wrapper {
 
   h1 {

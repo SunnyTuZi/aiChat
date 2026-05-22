@@ -46,8 +46,10 @@ declare module 'vue' {
     Pagination: typeof import('./src/components/Pagination/index.vue')['default']
     RouterLink: typeof import('vue-router')['RouterLink']
     RouterView: typeof import('vue-router')['RouterView']
+    SideBar: typeof import('./src/components/SideBar/index.vue')['default']
     SideBarItem: typeof import('./src/components/SideBar/Item.vue')['default']
     TableList: typeof import('./src/components/TableList/index.vue')['default']
+    TopicSideBar: typeof import('./src/components/TopicSideBar/index.vue')['default']
   }
 }
 
@@ -87,6 +89,8 @@ declare global {
   const Pagination: typeof import('./src/components/Pagination/index.vue')['default']
   const RouterLink: typeof import('vue-router')['RouterLink']
   const RouterView: typeof import('vue-router')['RouterView']
+  const SideBar: typeof import('./src/components/SideBar/index.vue')['default']
   const SideBarItem: typeof import('./src/components/SideBar/Item.vue')['default']
   const TableList: typeof import('./src/components/TableList/index.vue')['default']
+  const TopicSideBar: typeof import('./src/components/TopicSideBar/index.vue')['default']
 }

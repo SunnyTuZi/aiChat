@@ -1,15 +1,16 @@
 <script lang="tsx" setup>
+import { ref, computed, watch, nextTick } from 'vue'
+import { useRoute, useRouter } from 'vue-router'
+import { useMagicKeys, useActiveElement } from '@vueuse/core'
 import { defaultMockModelName, modelMappingList, triggerModelTermination } from '@/components/MarkdownPreview/models'
-import { type InputInst } from 'naive-ui'
+import type { InputInst } from 'naive-ui'
 import type { SelectBaseOption } from 'naive-ui/es/select/src/interface'
 import { isGithubDeployed } from '@/config'
-
 import { UAParser } from 'ua-parser-js'
 
 const route = useRoute()
 const router = useRouter()
 const businessStore = useBusinessStore()
-
 
 const modelListSelections = computed(() => {
   return modelMappingList.map<SelectBaseOption>((modelItem) => {
@@ -21,12 +22,10 @@ const modelListSelections = computed(() => {
     return {
       label: modelItem.label,
       value: modelItem.modelName,
-      // Github 演示环境禁用模型切换，拉取代码后可按自己需求修改
       disabled
     }
   })
 })
-
 
 const loading = ref(true)
 
@@ -34,19 +33,11 @@ setTimeout(() => {
   loading.value = false
 }, 700)
 
-
 const stylizingLoading = ref(false)
 
-
-/**
- * 输入字符串
- */
 const inputTextString = ref('')
 const refInputTextString = ref<InputInst | null>()
 
-/**
- * 输出字符串 Reader 流（风格化的）
- */
 const outputTextReader = ref<ReadableStreamDefaultReader | null>()
 
 const refReaderMarkdownPreview = ref<any>()
@@ -76,13 +67,11 @@ const onCompletedReader = () => {
 }
 
 const handleCreateStylized = async () => {
-  // 若正在加载，则点击后恢复初始状态
   if (stylizingLoading.value) {
     refReaderMarkdownPreview.value.abortReader()
     onCompletedReader()
     return
   }
-
 
   if (refInputTextString.value && !inputTextString.value.trim()) {
     inputTextString.value = ''
@@ -109,7 +98,6 @@ const handleCreateStylized = async () => {
     outputTextReader.value = reader
   }
 }
-
 
 const keys = useMagicKeys()
 const enterCommand = keys['Meta+Enter']
@@ -140,9 +128,7 @@ watch(
   () => enterCommand.value,
   () => {
     if (!isMacos.value || notUsingInput.value) return
-
     if (stylizingLoading.value) return
-
     if (!enterCommand.value) {
       handleCreateStylized()
     }
@@ -156,9 +142,7 @@ watch(
   () => enterCtrl.value,
   () => {
     if (isMacos.value || notUsingInput.value) return
-
     if (stylizingLoading.value) return
-
     if (!enterCtrl.value) {
       handleCreateStylized()
     }
@@ -168,10 +152,8 @@ watch(
   }
 )
 
-
 const handleResetState = () => {
   inputTextString.value = ''
-
   stylizingLoading.value = false
   nextTick(() => {
     refInputTextString.value?.focus()
@@ -180,7 +162,6 @@ const handleResetState = () => {
   refReaderMarkdownPreview.value?.resetStatus()
 }
 handleResetState()
-
 
 const PromptTag = defineComponent({
   props: {
@@ -203,16 +184,7 @@ const PromptTag = defineComponent({
   render() {
     return (
       <div
-        b="~ solid transparent"
-        hover="shadow-[--shadow] b-primary bg-#e8e8e8"
-        class={[
-          'px-10 py-2 rounded-7 text-12',
-          'max-w-230 transition-all-300 select-none cursor-pointer',
-          'c-#525252 bg-#ededed'
-        ]}
-        style={{
-          '--shadow': '3px 3px 3px -1px rgba(0,0,0,0.1)'
-        }}
+        class="prompt-tag"
         onClick={this.handleClick}
       >
         <n-ellipsis
@@ -235,72 +207,35 @@ const promptTextList = ref([
   '打个招呼吧，并告诉我你的名字',
   '使用中文，回答以下两个问题，分段表示\n1、你是什么模型？\n2、请分别使用 Vue3 和 React 编写一个 Button 组件，要求在 Vue3 中使用 Setup Composition API 语法糖，在 React 中使用 TSX 语法'
 ])
-
-
 </script>
 
 <template>
-  <LayoutCenterPanel
-    :loading="loading"
-  >
-    <!-- 内容区域 -->
-    <div
-      flex="~ col"
-      h-full
-    >
-      <div
-        flex="~ justify-between items-center"
-      >
-        <NavigationNavBar>
-          <template #right>
-            <div
-              flex="~ justify-center items-center wrap"
-              class="text-16 line-height-16"
-            >
-              <span class="lt-xs:hidden">当前模型：</span>
-              <div
-                flex="~ justify-center items-center"
-              >
-                <n-select
-                  v-model:value="businessStore.systemModelName"
-                  class="w-280 lt-xs:w-260 pr-10 font-italic font-bold"
-                  placeholder="请选择模型"
-                  :disabled="stylizingLoading"
-                  :options="modelListSelections"
-                />
-                <CustomTooltip
-                  :disabled="false"
-                >
-                  <div>注意：</div>
-                  <div>
-                    演示环境仅支持 “模拟数据模型”
-                  </div>
-                  <div>
-                    如需测试其他模型请克隆<a
-                      href="https://github.com/pdsuwwz/chatgpt-vue3-light-mvp"
-                      target="_blank"
-                      class="px-2 underline c-warning font-bold"
-                    >本仓库</a>到本地运行
-                  </div>
-                  <template #trigger>
-                    <span
-                      class="cursor-help font-bold c-primary text-17 i-ic:sharp-help"
-                      ml-10
-                      mr-24
-                    ></span>
-                  </template>
-                </CustomTooltip>
-              </div>
-            </div>
-          </template>
-        </NavigationNavBar>
+  <LayoutCenterPanel :loading="loading">
+    <div class="chat-container">
+      <div class="chat-header">
+        <div class="header-info">
+          <div class="avatar-wrapper">
+            <span class="i-hugeicons:ai-chat-02"></span>
+          </div>
+          <div class="header-text">
+            <h2 class="header-title">随便聊聊</h2>
+            <p class="header-subtitle">我是你的智能助手，可以回答你的任何问题</p>
+          </div>
+        </div>
+        <div class="header-actions">
+          <div class="model-select-wrapper">
+            <n-select
+              v-model:value="businessStore.systemModelName"
+              class="model-select"
+              placeholder="请选择模型"
+              :disabled="stylizingLoading"
+              :options="modelListSelections"
+            />
+          </div>
+        </div>
       </div>
 
-      <div
-        flex="1 ~ col"
-        min-h-0
-        pb-20
-      >
+      <div class="chat-content">
         <MarkdownPreview
           ref="refReaderMarkdownPreview"
           v-model:reader="outputTextReader"
@@ -311,73 +246,331 @@ const promptTextList = ref([
         />
       </div>
 
-      <div
-        flex="~ col items-center"
-        flex-basis="10%"
-        p="14px"
-        py="0"
-      >
-        <div
-          w-full
-          flex="~ justify-start"
-          class="px-1em pb-10"
-        >
-          <n-space>
+      <div class="chat-footer">
+        <!-- <div class="quick-prompts">
+          <n-space class="prompts-container">
             <PromptTag
               v-for="(textItem, idx) in promptTextList"
               :key="idx"
               :text="textItem"
             />
           </n-space>
-        </div>
-        <div
-          relative
-          flex="1"
-          w-full
-          px-1em
-        >
+        </div> -->
+        <div class="input-wrapper">
           <n-input
             ref="refInputTextString"
             v-model:value="inputTextString"
             type="textarea"
             autofocus
-            h-full
-            class="textarea-resize-none text-15"
-            :style="{
-              '--n-border-radius': '20px',
-              '--n-padding-left': '20px',
-              '--n-padding-right': '20px',
-              '--n-padding-vertical': '10px',
-            }"
+            class="chat-input"
             :placeholder="placeholder"
+            :disabled="stylizingLoading"
           />
-          <n-float-button
-            position="absolute"
-            :right="40"
-            bottom="50%"
-            :type="stylizingLoading ? 'primary' : 'default'"
-            color
-            :class="[
-              stylizingLoading && 'opacity-90',
-              'translate-y-50%'
-            ]"
-            @click.stop="handleCreateStylized()"
-          >
-            <div
-              v-if="stylizingLoading"
-              class="i-svg-spinners:pulse-2 c-#fff"
-            ></div>
-            <div
-              v-else
-              class="transform-rotate-z--90 text-22 c-#303133/70 i-hugeicons:start-up-02"
-            ></div>
-          </n-float-button>
+          <div class="input-actions">
+
+            <button
+              class="send-btn"
+              :class="{ 'sending': stylizingLoading }"
+              @click.stop="handleCreateStylized()"
+              :disabled="!inputTextString.trim() || stylizingLoading"
+            >
+              <span v-if="stylizingLoading" class="i-svg-spinners:pulse-2"></span>
+              <span v-else class="i-hugeicons:send">发送</span>
+            </button>
+
+          </div>
         </div>
+        <!-- <div class="footer-info">
+          <span class="info-text">按 Enter 发送，Shift + Enter 换行</span>
+        </div> -->
       </div>
     </div>
   </LayoutCenterPanel>
 </template>
 
 <style lang="scss" scoped>
+.chat-container {
+  display: flex;
+  flex-direction: column;
+  height: 100%;
+  background: #ffffff;
+}
 
+.chat-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 16px 24px;
+  border-bottom: 1px solid #e5e7eb;
+  background: linear-gradient(180deg, rgba(139, 92, 246, 0.02) 0%, transparent 100%);
+}
+
+.header-info {
+  display: flex;
+  align-items: center;
+  gap: 14px;
+}
+
+.avatar-wrapper {
+  width: 44px;
+  height: 44px;
+  border-radius: 14px;
+  background: linear-gradient(135deg, #e9d5ff 0%, #fbcfe8 100%);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 22px;
+  color: #8b5cf6;
+}
+
+.header-text {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+}
+
+.header-title {
+  font-size: 16px;
+  font-weight: 600;
+  color: #1f2937;
+  margin: 0;
+}
+
+.header-subtitle {
+  font-size: 13px;
+  color: #6b7280;
+  margin: 0;
+}
+
+.header-actions {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+}
+
+.model-select-wrapper {
+  position: relative;
+}
+
+.model-select {
+  min-width: 200px;
+  padding: 6px 12px;
+  border-radius: 10px;
+  background: #f3f4f6;
+  border: none;
+  
+  .n-select-trigger {
+    border-radius: 10px;
+    background: transparent;
+    border: none;
+  }
+}
+
+.help-btn,
+.action-btn {
+  width: 36px;
+  height: 36px;
+  border-radius: 10px;
+  border: none;
+  background: #f3f4f6;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 16px;
+  color: #6b7280;
+  cursor: pointer;
+  transition: all 0.2s ease;
+  
+  &:hover {
+    background: rgba(139, 92, 246, 0.1);
+    color: #8b5cf6;
+  }
+}
+
+.chat-content {
+  flex: 1;
+  overflow: hidden;
+  display: flex;
+  flex-direction: column;
+}
+
+.chat-footer {
+  padding: 16px 24px;
+  border-top: 1px solid #e5e7eb;
+  background: #faf5ff;
+}
+
+.quick-prompts {
+  padding-bottom: 12px;
+}
+
+.prompts-container {
+  flex-wrap: wrap;
+}
+
+.prompt-tag {
+  padding: 6px 12px;
+  border-radius: 20px;
+  background: #ffffff;
+  border: 1px solid #e5e7eb;
+  font-size: 13px;
+  color: #6b7280;
+  cursor: pointer;
+  transition: all 0.2s ease;
+  display: inline-flex;
+  align-items: center;
+  
+  &:hover {
+    background: linear-gradient(135deg, rgba(139, 92, 246, 0.1) 0%, rgba(236, 72, 153, 0.1) 100%);
+    border-color: rgba(139, 92, 246, 0.3);
+    color: #8b5cf6;
+    transform: translateY(-2px);
+    box-shadow: 0 4px 12px rgba(139, 92, 246, 0.15);
+  }
+}
+
+.input-wrapper {
+  position: relative;
+  display: flex;
+  flex-direction: column;
+  justify-content: flex-end;
+  gap: 10px;
+  // background: #ffffff;
+  // border-radius: 20px;
+  // border: 1px solid #e5e7eb;
+  // padding: 10px;
+  transition: all 0.2s ease;
+  
+  // &:focus-within {
+  //   border-color: #8b5cf6;
+  //   box-shadow: 0 0 0 3px rgba(139, 92, 246, 0.1);
+  // }
+}
+
+.chat-input {
+  flex: 1;
+  border: none;
+  background: transparent;
+  outline: none;
+  font-size: 15px;
+  color: #1f2937;
+  resize: none;
+  
+  .n-input-wrapper {
+    background: transparent;
+    border: none;
+    
+    textarea {
+      resize: none;
+      padding: 0;
+    }
+  }
+}
+
+.input-actions {
+  display: flex;
+  justify-content: flex-end;
+}
+
+.action-btn-small {
+  width: 64px;
+  height: 32px;
+  border-radius: 8px;
+  border: none;
+  background: #f3f4f6;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 14px;
+  color: #6b7280;
+  cursor: pointer;
+  transition: all 0.2s ease;
+  
+  &:hover {
+    background: rgba(139, 92, 246, 0.1);
+    color: #8b5cf6;
+  }
+}
+
+.send-btn {
+  width: 64px;
+  height: 32px;
+  border-radius: 3px;
+  border: none;
+  background: linear-gradient(135deg, #8b5cf6 0%, #ec4899 100%);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 12px;
+  color: #ffffff;
+  cursor: pointer;
+  transition: all 0.2s ease;
+  flex-shrink: 0;
+  
+  &:hover:not(:disabled) {
+    transform: scale(1.05);
+    box-shadow: 0 4px 15px rgba(139, 92, 246, 0.4);
+  }
+  
+  &:disabled {
+    opacity: 0.5;
+    cursor: not-allowed;
+  }
+  
+  &.sending {
+    background: linear-gradient(135deg, #a78bfa 0%, #f472b6 100%);
+    animation: pulse 1s ease-in-out infinite;
+  }
+}
+
+@keyframes pulse {
+  0%, 100% {
+    opacity: 1;
+  }
+  50% {
+    opacity: 0.7;
+  }
+}
+
+.footer-info {
+  padding-top: 8px;
+  text-align: center;
+}
+
+.info-text {
+  font-size: 12px;
+  color: #9ca3af;
+}
+
+.link-primary {
+  color: #8b5cf6;
+  font-weight: 600;
+  text-decoration: underline;
+  
+  &:hover {
+    color: #7c3aed;
+  }
+}
+
+.wrapper-tooltip-scroller {
+  max-width: 285px;
+  max-height: 100px;
+  overflow-y: auto;
+  white-space: pre-wrap;
+  
+  &::-webkit-scrollbar {
+    width: 6px;
+    height: 6px;
+  }
+  
+  &::-webkit-scrollbar-thumb {
+    border-radius: 3px;
+    background: rgba(255, 255, 255, 0.5);
+  }
+  
+  &::-webkit-scrollbar-track {
+    border-radius: 3px;
+    background: rgba(255, 255, 255, 0.15);
+  }
+}
 </style>
