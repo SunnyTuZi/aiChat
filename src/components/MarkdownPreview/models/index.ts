@@ -174,6 +174,11 @@ export type CrossTransformFunction = (readValue: Uint8Array | string, textDecode
 
 export type TransformFunction = (readValue: Uint8Array | string, textDecoder: TextDecoder) => ContentResult
 
+interface ChatMessage {
+  role: string
+  content: string
+}
+
 interface TypesModelLLM {
   // 模型昵称
   label: string
@@ -182,7 +187,7 @@ interface TypesModelLLM {
   // Stream 结果转换器
   transformStreamValue: TransformFunction
   // 每个大模型调用的 API 请求
-  chatFetch: (text: string) => Promise<Response>
+  chatFetch: (text: string, messages?: ChatMessage[]) => Promise<Response>
 }
 
 
@@ -260,7 +265,7 @@ export const modelMappingList: TypesModelLLM[] = [
       }
     },
     // Event Stream 调用大模型接口 DeepSeek 深度求索 (Fetch 调用)
-    chatFetch(text) {
+    chatFetch(text, messages = []) {
       const url = new URL(`${ location.origin }/deepseek/chat/completions`)
       const params = {
       }
@@ -268,6 +273,10 @@ export const modelMappingList: TypesModelLLM[] = [
         url.searchParams.append(key, params[key])
       })
 
+      const chatMessages = [...messages, {
+        'role': 'user',
+        'content': text
+      }]
 
       const req = new Request(url, {
         method: 'post',
@@ -279,12 +288,7 @@ export const modelMappingList: TypesModelLLM[] = [
           // 普通模型 V3
           'model': 'deepseek-chat',
           stream: true,
-          messages: [
-            {
-              'role': 'user',
-              'content': text
-            }
-          ]
+          messages: chatMessages
         })
       })
       return fetch(req)
@@ -310,13 +314,19 @@ export const modelMappingList: TypesModelLLM[] = [
       }
     },
     // Event Stream 调用大模型接口 DeepSeek 深度求索 (Fetch 调用)
-    chatFetch(text) {
+    chatFetch(text, messages = []) {
       const url = new URL(`${ location.origin }/deepseek/chat/completions`)
       const params = {
       }
       Object.keys(params).forEach(key => {
         url.searchParams.append(key, params[key])
       })
+
+      const chatMessages = [...messages, {
+        'role': 'user',
+        'content': text
+      }]
+
       const req = new Request(url, {
         method: 'post',
         headers: {
@@ -327,12 +337,7 @@ export const modelMappingList: TypesModelLLM[] = [
           // 推理模型
           'model': 'deepseek-reasoner',
           stream: true,
-          messages: [
-            {
-              'role': 'user',
-              'content': text
-            }
-          ]
+          messages: chatMessages
         })
       })
       return fetch(req)

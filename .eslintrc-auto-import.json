@@ -2,6 +2,8 @@
   "globals": {
     "App": true,
     "BusinessState": true,
+    "ChatMessage": true,
+    "ChatSession": true,
     "Component": true,
     "ComponentInternalInstance": true,
     "ComponentPublicInstance": true,

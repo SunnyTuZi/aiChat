@@ -1,109 +1,103 @@
-<script lang="tsx" setup>
-import { computed, ref } from 'vue'
+<script lang="ts" setup>
+import { ref, onMounted, onUnmounted } from 'vue'
+import { useBusinessStore, type ChatSession } from '@/store/business'
+import { storeToRefs } from 'pinia'
+import { NInput, useDialog, useMessage } from 'naive-ui'
 
-interface Assistant {
-  id: string
-  name: string
-  avatar: string
-  description: string
-  isActive?: boolean
+const businessStore = useBusinessStore()
+const { sessionList, currentSessionId } = storeToRefs(businessStore)
+
+const dialog = useDialog()
+const message = useMessage()
+
+const editingId = ref<string | null>(null)
+const editingTitle = ref('')
+const openDropdownId = ref<string | null>(null)
+
+const handleClickOutside = (event: MouseEvent) => {
+  const target = event.target as HTMLElement
+  if (!target.closest('.dropdown-wrapper')) {
+    openDropdownId.value = null
+  }
 }
 
-const props = withDefaults(
-  defineProps<{
-    assistants?: Assistant[]
-    activeId?: string
-  }>(),
-  {
-    assistants: () => [
-      {
-        id: '1',
-        name: '随便聊聊',
-        avatar: 'i-hugeicons:ai-chat-02',
-        description: '我是你的智能助手，可以回答你的任何问题',
-        isActive: true
-      }
-      // {
-      //   id: '2',
-      //   name: '代码助手',
-      //   avatar: 'i-hugeicons:code-circle',
-      //   description: '专业的代码编写和调试助手'
-      // },
-      // {
-      //   id: '3',
-      //   name: '写作助手',
-      //   avatar: 'i-hugeicons:edit-3',
-      //   description: '帮助你撰写各种类型的文档'
-      // },
-      // {
-      //   id: '4',
-      //   name: '学习助手',
-      //   avatar: 'i-hugeicons:book-open',
-      //   description: '学习路上的好帮手'
-      // }
-    ]
-  }
-)
-
-const emit = defineEmits(['select'])
-
-const hoveredId = ref<string | null>(null)
-
-const activeAssistant = computed(() => {
-  return props.assistants.find(a => a.id === props.activeId) || props.assistants[0]
+onMounted(() => {
+  document.addEventListener('click', handleClickOutside)
 })
 
-const handleSelect = (assistant: Assistant) => {
-  emit('select', assistant)
+onUnmounted(() => {
+  document.removeEventListener('click', handleClickOutside)
+})
+
+const toggleDropdown = (sessionId: string, event: Event) => {
+  event.stopPropagation()
+  openDropdownId.value = openDropdownId.value === sessionId ? null : sessionId
 }
 
-const AddAssistantButton = defineComponent({
-  setup() {
-    const isHovered = ref(false)
-    return {
-      isHovered
+const handleNewChat = () => {
+  businessStore.createNewSession()
+}
+
+const handleSelectSession = (session: ChatSession) => {
+  if (editingId.value === session.id || openDropdownId.value === session.id)
+    return
+  businessStore.selectSession(session.id)
+}
+
+const handleDeleteSession = (sessionId: string) => {
+  businessStore.deleteSession(sessionId)
+}
+
+const handleRenameSession = (sessionId: string, newTitle: string) => {
+  if (newTitle.trim()) {
+    businessStore.renameSession(sessionId, newTitle.trim())
+  }
+  editingId.value = null
+  editingTitle.value = ''
+}
+
+const handlePinSession = (sessionId: string) => {
+  businessStore.pinSession(sessionId)
+  openDropdownId.value = null
+}
+
+const startEdit = (session: ChatSession) => {
+  editingId.value = session.id
+  editingTitle.value = session.title
+  openDropdownId.value = null
+}
+
+const cancelEdit = () => {
+  editingId.value = null
+  editingTitle.value = ''
+}
+
+const confirmDelete = (session: ChatSession) => {
+  dialog.create({
+    title: '确认删除',
+    content: '确定要删除这个对话吗？',
+    positiveText: '删除',
+    negativeText: '取消',
+    positiveButtonProps: {
+      type: 'primary'
+    },
+    negativeButtonProps: {
+      type: 'default',
+      ghost: false
+    },
+    onPositiveClick: () => {
+      handleDeleteSession(session.id)
+      message.success('已删除')
     }
-  },
-  render() {
-    return (
-      <button
-        class="w-full flex items-center justify-center gap-2 py-3 px-4 rounded-xl transition-all duration-200 cursor-pointer group"
-        style={{
-          backgroundColor: this.isHovered ? 'rgba(139, 92, 246, 0.1)' : 'transparent',
-          border: '2px dashed #e5e7eb'
-        }}
-        onMouseenter={() => { this.isHovered = true }}
-        onMouseleave={() => { this.isHovered = false }}
-      >
-        <div
-          class="w-8 h-8 rounded-full flex items-center justify-center transition-all duration-200"
-          style={{
-            backgroundColor: this.isHovered ? '#8b5cf6' : '#f3f4f6'
-          }}
-        >
-          <span
-            class="text-lg font-bold transition-colors duration-200"
-            style={{
-              color: this.isHovered ? '#ffffff' : '#6b7280'
-            }}
-          >+</span>
-        </div>
-        <span
-          class="text-sm font-medium transition-colors duration-200"
-          style={{
-            color: this.isHovered ? '#8b5cf6' : '#9ca3af'
-          }}
-        >新建助手</span>
-      </button>
-    )
-  }
-})
+  })
+  openDropdownId.value = null
+}
 </script>
 
 <template>
   <div class="sidebar-container">
     <div class="sidebar-header">
-      <div class="logo-section">
+      <div class="logo-section" @click="handleNewChat">
         <div class="logo-icon">
           <span class="i-hugeicons:ai-brain-03"></span>
         </div>
@@ -111,58 +105,76 @@ const AddAssistantButton = defineComponent({
       </div>
     </div>
 
-    <div class="search-wrapper">
-      <div class="search-input-wrapper">
-        <span class="search-icon i-hugeicons:search"></span>
-        <input
-          type="text"
-          placeholder="搜索助手..."
-          class="search-input"
-        >
-      </div>
+    <div class="new-chat-wrapper">
+      <button class="new-chat-btn" @click="handleNewChat">
+        <span class="i-hugeicons:add-01"></span>
+        <span>新建对话</span>
+      </button>
     </div>
 
-    <div class="assistants-list">
+    <div class="chat-list">
       <div
-        v-for="assistant in assistants"
-        :key="assistant.id"
-        class="assistant-item"
+        v-for="session in sessionList"
+        :key="session.id"
+        class="chat-item"
         :class="{
-          'active': assistant.id === activeId,
-          'hovered': hoveredId === assistant.id
+          'active': session.id === currentSessionId,
+          'pinned': session.pinned
         }"
-        @click="handleSelect(assistant)"
-        @mouseenter="hoveredId = assistant.id"
-        @mouseleave="hoveredId = null"
+        @click="handleSelectSession(session)"
       >
-        <div class="assistant-avatar">
-          <span :class="assistant.avatar"></span>
+        <div v-if="session.pinned" class="pin-icon">
+          <span class="i-hugeicons:pin-01"></span>
         </div>
-        <div class="assistant-info">
-          <div class="assistant-name">{{ assistant.name }}</div>
-          <div class="assistant-description">{{ assistant.description }}</div>
+        <div class="chat-icon">
+          <span class="i-hugeicons:ai-voice"></span>
         </div>
-        <div
-          v-if="assistant.id === activeId"
-          class="active-indicator"
-        ></div>
+        <div class="chat-info">
+          <div v-if="editingId === session.id" class="edit-input-wrapper">
+            <NInput
+              v-model:value="editingTitle"
+              class="edit-input"
+              @keydown.enter="handleRenameSession(session.id, editingTitle)"
+              @keydown.escape="cancelEdit"
+              autofocus
+            />
+          </div>
+          <div v-else class="chat-title" :title="session.title">{{ session.title }}</div>
+          <div class="chat-time">
+            {{ new Date(session.updatedAt).toLocaleDateString('zh-CN', { month: 'short', day: 'numeric' }) }}
+          </div>
+        </div>
+
+        <div class="dropdown-wrapper">
+          <button
+            class="more-btn"
+            @click.stop="toggleDropdown(session.id, $event)"
+          >
+            <span class="i-hugeicons:more-vertical"></span>
+          </button>
+
+          <div
+            v-if="openDropdownId === session.id"
+            class="custom-dropdown"
+            @click.stop
+          >
+            <button class="dropdown-item" @click="startEdit(session)">
+              <span class="i-hugeicons:edit-01"></span>
+              <span>重命名</span>
+            </button>
+            <button class="dropdown-item" @click="handlePinSession(session.id)">
+              <span class="i-hugeicons:pin-01"></span>
+              <span>{{ session.pinned ? '取消置顶' : '置顶' }}</span>
+            </button>
+            <div class="dropdown-divider"></div>
+            <button class="dropdown-item danger" @click="confirmDelete(session)">
+              <span class="i-hugeicons:trash-01"></span>
+              <span>删除</span>
+            </button>
+          </div>
+        </div>
       </div>
     </div>
-
-    <!-- <div class="sidebar-footer">
-      <AddAssistantButton />
-
-      <div class="divider"></div>
-
-      <div class="sidebar-actions">
-        <button class="action-btn">
-          <span class="i-hugeicons:settings-2"></span>
-        </button>
-        <button class="action-btn">
-          <span class="i-hugeicons:help-circle"></span>
-        </button>
-      </div>
-    </div> -->
   </div>
 </template>
 
@@ -178,7 +190,7 @@ const AddAssistantButton = defineComponent({
 }
 
 .sidebar-header {
-  padding: 8px 0 20px;
+  padding: 8px 0 12px;
 }
 
 .logo-section {
@@ -214,47 +226,33 @@ const AddAssistantButton = defineComponent({
   color: #fff;
 }
 
-.search-wrapper {
+.new-chat-wrapper {
   padding-bottom: 12px;
 }
 
-.search-input-wrapper {
+.new-chat-btn {
+  width: 100%;
   display: flex;
   align-items: center;
+  justify-content: center;
+  gap: 8px;
+  padding: 4px 10px;
 
-  // background: #f3f4f6;
-  // border-radius: 12px;
-  // padding: 8px 12px;
-
+  background: #fff;
+  color: #8b5cf6;
+  font-size: 14px;
+  font-weight: 600;
+  border: 1px dashed #d8b4fe;
+  cursor: pointer;
   transition: all 0.2s ease;
 
-  &:focus-within {
-    background: #fff;
-    box-shadow: 0 0 0 2px rgb(139 92 246 / 20%);
+  &:hover {
     border-color: #8b5cf6;
+    background: rgb(139 92 246 / 5%);
   }
 }
 
-.search-icon {
-  font-size: 14px;
-  color: #9ca3af;
-  margin-right: 8px;
-}
-
-.search-input {
-  flex: 1;
-  border: none;
-  background: transparent;
-  outline: none;
-  font-size: 14px;
-  color: #1f2937;
-
-  &::placeholder {
-    color: #9ca3af;
-  }
-}
-
-.assistants-list {
+.chat-list {
   flex: 1;
   overflow-y: auto;
   padding-right: 4px;
@@ -277,10 +275,10 @@ const AddAssistantButton = defineComponent({
   }
 }
 
-.assistant-item {
+.chat-item {
   display: flex;
   align-items: center;
-  gap: 12px;
+  gap: 10px;
   padding: 10px 12px;
   border-radius: 12px;
   cursor: pointer;
@@ -290,6 +288,10 @@ const AddAssistantButton = defineComponent({
 
   &:hover {
     background: rgb(139 92 246 / 5%);
+
+    .more-btn {
+      opacity: 1;
+    }
   }
 
   &.active {
@@ -297,88 +299,138 @@ const AddAssistantButton = defineComponent({
   }
 }
 
-.assistant-avatar {
-  width: 40px;
-  height: 40px;
-  border-radius: 12px;
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  font-size: 20px;
-  background: linear-gradient(135deg, #e9d5ff 0%, #fbcfe8 100%);
-  color: #8b5cf6;
-  flex-shrink: 0;
-}
-
-.assistant-info {
-  flex: 1;
-  min-width: 0;
-  overflow: hidden;
-}
-
-.assistant-name {
-  font-size: 14px;
-  font-weight: 600;
-  color: #1f2937;
-  white-space: nowrap;
-  overflow: hidden;
-  text-overflow: ellipsis;
-}
-
-.assistant-description {
-  font-size: 12px;
-  color: #9ca3af;
-  white-space: nowrap;
-  overflow: hidden;
-  text-overflow: ellipsis;
-  margin-top: 2px;
-}
-
-.active-indicator {
-  position: absolute;
-  left: 0;
-  top: 50%;
-  transform: translateY(-50%);
-  width: 3px;
-  height: 20px;
-  background: linear-gradient(180deg, #8b5cf6 0%, #ec4899 100%);
-  border-radius: 0 3px 3px 0;
-}
-
-.sidebar-footer {
-  padding-top: 12px;
-  border-top: 1px solid #e5e7eb;
-}
-
-.divider {
-  height: 1px;
-  background: #e5e7eb;
-  margin: 12px 0;
-}
-
-.sidebar-actions {
-  display: flex;
-  justify-content: center;
-  gap: 12px;
-}
-
-.action-btn {
-  width: 36px;
-  height: 36px;
-  border-radius: 10px;
-  border: none;
+.chat-icon {
+  width: 32px;
+  height: 32px;
+  border-radius: 8px;
   background: #f3f4f6;
   display: flex;
   align-items: center;
   justify-content: center;
   font-size: 16px;
   color: #6b7280;
+  flex-shrink: 0;
+}
+
+.chat-info {
+  flex: 1;
+  min-width: 0;
+  overflow: hidden;
+}
+
+.chat-title {
+  font-size: 14px;
+  font-weight: 500;
+  color: #1f2937;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.chat-time {
+  font-size: 11px;
+  color: #9ca3af;
+  margin-top: 2px;
+}
+
+.dropdown-wrapper {
+  position: relative;
+  flex-shrink: 0;
+}
+
+.more-btn {
+  width: 28px;
+  height: 28px;
+  border-radius: 6px;
+  border: none;
+  background: transparent;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 14px;
+  color: #9ca3af;
   cursor: pointer;
+  opacity: 0;
+  transition: all 0.2s ease;
+  flex-shrink: 0;
+
+  &:hover {
+    background: #f3f4f6;
+    color: #6b7280;
+  }
+}
+
+.chat-item:hover .more-btn {
+  opacity: 1;
+}
+
+.pin-icon {
+  width: 20px;
+  height: 20px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 12px;
+  color: #8b5cf6;
+  flex-shrink: 0;
+}
+
+.edit-input-wrapper {
+  width: 100%;
+}
+
+.edit-input {
+  width: 100%;
+
+  .n-input-wrapper {
+    border-radius: 4px;
+    border: 1px solid #8b5cf6;
+  }
+}
+
+.custom-dropdown {
+  position: absolute;
+  right: 0;
+  top: 100%;
+  margin-top: 4px;
+  z-index: 100;
+  min-width: 140px;
+  background: #fff;
+  border-radius: 8px;
+  box-shadow: 0 4px 12px rgba(0, 0, 0, 0.15);
+  padding: 4px;
+}
+
+.dropdown-item {
+  width: 100%;
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 8px 12px;
+  border: none;
+  background: transparent;
+  font-size: 13px;
+  color: #374151;
+  cursor: pointer;
+  border-radius: 4px;
   transition: all 0.2s ease;
 
   &:hover {
-    background: rgb(139 92 246 / 10%);
-    color: #8b5cf6;
+    background: #f3f4f6;
   }
+
+  &.danger {
+    color: #ef4444;
+
+    &:hover {
+      background: #fee2e2;
+    }
+  }
+}
+
+.dropdown-divider {
+  height: 1px;
+  background: #e5e7eb;
+  margin: 4px 0;
 }
 </style>

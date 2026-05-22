@@ -4,45 +4,44 @@ import { renderMarkdownText, renderMermaidProcess } from './plugins/markdown'
 import type { CrossTransformFunction, TransformFunction } from './models'
 import { defaultMockModelName } from './models'
 
+export interface ChatMessage {
+  id: string
+  role: 'user' | 'assistant'
+  content: string
+  timestamp?: number
+}
+
 interface Props {
   reader?: ReadableStreamDefaultReader<Uint8Array> | null | undefined
   model: string | null| undefined
   transformStreamFn: TransformFunction | null | undefined
+  messages: ChatMessage[]
+  streamingContent?: string
 }
 
 const props = withDefaults(
   defineProps<Props>(),
   {
-    reader: null
+    reader: null,
+    messages: () => [],
+    streamingContent: ''
   }
 )
 
-
-// 定义响应式变量
-const displayText = ref('')
-const textBuffer = ref('')
+const fullContent = ref('')
 const readerLoading = ref(false)
-
 const isAbort = ref(false)
-
 const isCompleted = ref(false)
 
 const emit = defineEmits([
   'failed',
   'completed',
-  'update:reader'
+  'update:reader',
+  'streaming-update'
 ])
-
 
 const refWrapperContent = ref<HTMLElement>()
 
-let typingAnimationFrame: number | null = null
-
-const renderedMarkdown = computed(() => {
-  return renderMarkdownText(displayText.value)
-})
-
-// 接口响应是否正在排队等待
 const waitingForQueue = ref(false)
 
 const WaitTextRender = defineComponent({
@@ -90,37 +89,9 @@ const resetStatus = () => {
   emit('update:reader', null)
 
   initializeEnd()
-  displayText.value = ''
-  textBuffer.value = ''
+  fullContent.value = ''
   readerLoading.value = false
-  if (typingAnimationFrame) {
-    cancelAnimationFrame(typingAnimationFrame)
-    typingAnimationFrame = null
-  }
 }
-
-/**
- * 检查是否有实际内容
- */
-function hasActualContent(html) {
-  const text = html.replace(/<[^>]*>/g, '')
-  return /\S/.test(text)
-}
-
-const showCopy = computed(() => {
-  if (!isCompleted.value) return false
-
-  if (hasActualContent(displayText.value)) {
-    return true
-  }
-  return false
-})
-
-const renderedContent = computed(() => {
-  // 在 renderedMarkdown 末尾插入光标标记
-  return `${ renderedMarkdown.value }`
-})
-
 
 const initialized = ref(false)
 
@@ -132,16 +103,13 @@ const initializeEnd = () => {
   initialized.value = false
 }
 
-/**
- * reader 读取是否结束
- */
 const readIsOver = ref(false)
 const readTextStream = async () => {
   if (!props.reader) return
 
-
   const textDecoder = new TextDecoder('utf-8')
   readerLoading.value = true
+  fullContent.value = ''
 
   while (true) {
     if (isAbort.value) {
@@ -178,12 +146,13 @@ const readTextStream = async () => {
       }
       if (stream.content) {
         waitingForQueue.value = false
-        textBuffer.value += stream.content
+        fullContent.value += stream.content
+        emit('streaming-update', fullContent.value)
       }
 
-      if (typingAnimationFrame === null) {
-        showText()
-      }
+      nextTick(() => {
+        scrollToBottomIfAtBottom()
+      })
     } catch (error) {
       readIsOver.value = true
       emit('failed', error)
@@ -193,6 +162,18 @@ const readTextStream = async () => {
       initializeEnd()
     }
   }
+
+  window.$ModalNotification.success({
+    title: '生成完毕',
+    duration: 1500
+  })
+  emit('update:reader', null)
+  emit('completed')
+  readerLoading.value = false
+  isCompleted.value = true
+  nextTick(() => {
+    readIsOver.value = false
+  })
 }
 
 const scrollToBottom = async () => {
@@ -212,70 +193,14 @@ const scrollToBottomByThreshold = async () => {
 }
 
 const scrollToBottomIfAtBottom = async () => {
-  // TODO: 需要同时支持手动向上滚动
   scrollToBottomByThreshold()
-}
-
-/**
- * 读取 buffer 内容，逐字追加到 displayText
- */
-const runReadBuffer = (readCallback = () => {}, endCallback = () => {}) => {
-  if (textBuffer.value.length > 0) {
-    const nextChunk = textBuffer.value.substring(0, 10)
-    displayText.value += nextChunk
-    textBuffer.value = textBuffer.value.substring(10)
-    readCallback()
-  } else {
-    endCallback()
-  }
-}
-
-const showText = () => {
-  if (isAbort.value && typingAnimationFrame) {
-    cancelAnimationFrame(typingAnimationFrame)
-    typingAnimationFrame = null
-    readerLoading.value = false
-    renderMermaidProcess(scrollToBottom)
-    return
-  }
-
-  // 若 reader 还没结束，则保持打字行为
-  if (!readIsOver.value) {
-    runReadBuffer()
-    renderMermaidProcess(scrollToBottom)
-    typingAnimationFrame = requestAnimationFrame(showText)
-  } else {
-    // 读取剩余的 buffer
-    runReadBuffer(
-      () => {
-        renderMermaidProcess(scrollToBottom)
-        typingAnimationFrame = requestAnimationFrame(showText)
-      },
-      () => {
-        renderMermaidProcess(scrollToBottom)
-
-        window.$ModalNotification.success({
-          title: '生成完毕',
-          duration: 1500
-        })
-        emit('update:reader', null)
-        emit('completed')
-        readerLoading.value = false
-        isCompleted.value = true
-        nextTick(() => {
-          readIsOver.value = false
-        })
-        typingAnimationFrame = null
-      }
-    )
-  }
-  scrollToBottomIfAtBottom()
 }
 
 watch(
   () => props.reader,
   () => {
     if (props.reader) {
+      fullContent.value = ''
       readTextStream()
     }
   },
@@ -285,6 +210,24 @@ watch(
   }
 )
 
+watch(
+  () => props.messages,
+  () => {
+    nextTick(() => {
+      scrollToBottom()
+    })
+  },
+  { deep: true }
+)
+
+watch(
+  () => props.streamingContent,
+  () => {
+    nextTick(() => {
+      scrollToBottomIfAtBottom()
+    })
+  }
+)
 
 onUnmounted(() => {
   resetStatus()
@@ -309,128 +252,185 @@ const showLoading = computed(() => {
   if (!readerLoading) {
     return false
   }
-  if (displayText.value) {
+  if (fullContent.value) {
     return false
   }
 
   return false
 })
 
-const refClipBoard = ref()
-const handlePassClip = () => {
-  if (refClipBoard.value) {
-    refClipBoard.value.copyText()
-  }
-}
-
 const emptyPlaceholder = computed(() => {
   return defaultMockModelName === props.model
     ? '你想问点什么呢？' : '你想问点什么呢？'
 })
+
+const renderMessageContent = (content: string) => {
+  return renderMarkdownText(content)
+}
 </script>
 
 <template>
-  <n-spin
-    relative
-    flex="1 ~"
-    min-h-0
-    w-full
-    h-full
-    content-class="w-full h-full flex"
-    :show="showLoading"
-    :rotate="false"
-    class="bg-#fff:30"
-    :style="{
-      '--n-opacity-spinning': '0.3'
-    }"
+  <div
+    ref="refWrapperContent"
+    text-16
+    class="w-full h-full overflow-y-auto message-list-container"
+    p-24px
   >
-    <transition name="fade">
-      <n-float-button
-        v-if="showCopy"
-        position="absolute"
-        :top="30"
-        :right="30"
-        color
-        class="c-warning bg-#fff/80 hover:bg-#fff/90 transition-all-200 z-2"
-        @click="handlePassClip()"
-      >
-        <clip-board
-          ref="refClipBoard"
-          :auto-color="false"
-          no-copy
-          :text="displayText"
-        />
-      </n-float-button>
-    </transition>
-    <template #icon>
-      <div class="i-svg-spinners:3-dots-rotate"></div>
-    </template>
-    <!-- b="~ solid #ddd" -->
-    <div
-      flex="1 ~"
-      min-w-0
-      min-h-0
-      :class="[
-        reader
-          ? ''
-          : 'justify-center items-center'
-      ]"
+    <n-empty
+      v-if="messages.length === 0 && !reader"
+      size="large"
+      class="font-bold empty-state"
     >
       <div
-        text-16
-        class="w-full h-full overflow-hidden"
-        :class="[
-          !displayText && 'flex items-center justify-center'
-        ]"
-      >
-        <WaitTextRender
-          v-if="waitingForQueue && !displayText"
-        />
-        <template v-else>
-          <n-empty
-            v-if="!displayText"
-            size="large"
-            class="font-bold"
-          >
-            <div
-              whitespace-break-spaces
-              text-center
-              v-html="emptyPlaceholder"
-            ></div>
-            <template #icon>
-              <n-icon>
-                <div class="i-hugeicons:ai-chat-02"></div>
-              </n-icon>
-            </template>
-          </n-empty>
-          <div
-            v-else
-            ref="refWrapperContent"
-            text-16
-            class="w-full h-full overflow-y-auto"
-            p-24px
-          >
-            <div
-              class="markdown-wrapper"
-              v-html="renderedContent"
-            ></div>
-            <WaitTextRender
-              v-if="waitingForQueue"
-            />
-            <div
-              v-if="readerLoading"
-              size-24
-              class="i-svg-spinners:pulse-3"
-            ></div>
-          </div>
-        </template>
+        whitespace-break-spaces
+        text-center
+        v-html="emptyPlaceholder"
+      ></div>
+      <template #icon>
+        <n-icon>
+          <div class="i-hugeicons:ai-chat-02"></div>
+        </n-icon>
+      </template>
+    </n-empty>
+
+    <div
+      v-for="message in messages"
+      :key="message.id"
+      class="message-wrapper"
+      :class="message.role"
+    >
+      <div class="message-avatar">
+        <span v-if="message.role === 'user'" class="i-hugeicons:user-03"></span>
+        <span v-else class="i-hugeicons:ai-chat-02"></span>
+      </div>
+      <div class="message-content">
+        <div class="message-role">
+          {{ message.role === 'user' ? '你' : '助手' }}
+        </div>
+        <div
+          class="markdown-wrapper"
+          v-html="renderMessageContent(message.content)"
+        ></div>
       </div>
     </div>
-  </n-spin>
+
+    <div
+      v-if="reader && streamingContent"
+      class="message-wrapper assistant streaming"
+    >
+      <div class="message-avatar">
+        <span class="i-hugeicons:ai-chat-02"></span>
+      </div>
+      <div class="message-content">
+        <div class="message-role">助手</div>
+        <div
+          class="markdown-wrapper"
+          v-html="renderMessageContent(streamingContent)"
+        ></div>
+      </div>
+    </div>
+
+    <div
+      v-if="showLoading"
+      class="message-wrapper assistant loading"
+    >
+      <div class="message-avatar">
+        <span class="i-hugeicons:ai-chat-02"></span>
+      </div>
+      <div class="message-content">
+        <div class="message-role">助手</div>
+        <div class="loading-indicator">
+          <div class="i-svg-spinners:3-dots-rotate"></div>
+          <span>正在思考...</span>
+        </div>
+      </div>
+    </div>
+  </div>
 </template>
 
 <style lang="scss">
 @use "@/styles/naive-variables.scss" as *;
+
+.message-list-container {
+  &::-webkit-scrollbar {
+    width: 6px;
+  }
+
+  &::-webkit-scrollbar-track {
+    background: transparent;
+  }
+
+  &::-webkit-scrollbar-thumb {
+    background: #d1d5db;
+    border-radius: 3px;
+
+    &:hover {
+      background: #9ca3af;
+    }
+  }
+}
+
+.empty-state {
+  padding-top: 60px;
+}
+
+.message-wrapper {
+  display: flex;
+  gap: 16px;
+  margin-bottom: 24px;
+  max-width: 100%;
+
+  &.user {
+    flex-direction: row-reverse;
+
+    .message-content {
+      align-items: flex-end;
+    }
+  }
+
+  &.assistant {
+    .message-avatar {
+      background: linear-gradient(135deg, #e9d5ff 0%, #fbcfe8 100%);
+      color: #8b5cf6;
+    }
+  }
+}
+
+.message-avatar {
+  width: 40px;
+  height: 40px;
+  border-radius: 12px;
+  background: linear-gradient(135deg, #dbeafe 0%, #e0e7ff 100%);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 20px;
+  color: #3b82f6;
+  flex-shrink: 0;
+}
+
+.message-content {
+  flex: 1;
+  min-width: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+
+.message-role {
+  font-size: 13px;
+  font-weight: 600;
+  color: #6b7280;
+}
+
+.loading-indicator {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 12px 0;
+  color: #6b7280;
+  font-size: 14px;
+}
 
 .markdown-wrapper {
 
@@ -502,7 +502,8 @@ const emptyPlaceholder = computed(() => {
   }
 
   p {
-    line-height: 1.4;
+    line-height: 1.8;
+    white-space: pre-wrap;
 
     & > code {
       --at-apply: 'bg-#e5e5e5';
@@ -561,8 +562,6 @@ const emptyPlaceholder = computed(() => {
   tr:hover {
     --at-apply: bg-#f1f1f1;
   }
-
-  // Deepseek 深度思考 Wrapper
 
   .think-wrapper {
     --at-apply: pl-13 text-14 c-#8b8b8b;
