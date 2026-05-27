@@ -8,7 +8,7 @@ const history = isGithubDeployed
   : createWebHistory()
 
 const router = createRouter({
-  history,
+  history: createWebHashHistory(),
   routes
 })
 

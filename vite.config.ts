@@ -18,9 +18,10 @@ export default defineConfig(({ mode }) => {
   const env = loadEnv(mode, process.cwd())
 
   return {
-    base: env.VITE_ROUTER_MODE === 'hash'
-      ? ''
-      : '/',
+    // base: env.VITE_ROUTER_MODE === 'hash'
+    //   ? ''
+    //   : '/',
+    base: './',
     server: {
       port: 2048,
       proxy: {
